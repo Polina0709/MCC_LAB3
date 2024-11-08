@@ -73,7 +73,10 @@ def DeltaB(uu, db, deltaT, timeStamps, data, b):
 
     return deltaB
 
-def Parameters(b, t0, T, deltaT, eps, max_iter=1000):
+def MSE(data, model):
+    return np.mean((data - model) ** 2)
+
+def Parameters(b, t0, T, deltaT, eps, max_iter=100):
     timeStamps = np.linspace(t0, T, int((T - t0) / deltaT + 1))
 
     iteration_count = 0
@@ -84,6 +87,7 @@ def Parameters(b, t0, T, deltaT, eps, max_iter=1000):
     c2_history = []
     c4_history = []
     m1_history = []
+    mse_history = []
 
     while iteration_count < max_iter:
         iteration_count += 1
@@ -105,6 +109,11 @@ def Parameters(b, t0, T, deltaT, eps, max_iter=1000):
         c4_history.append(b[1])
         m1_history.append(b[2])
 
+        mse = MSE(data, Model_RK(b, timeStamps, deltaT))
+        mse_history.append(mse)
+
+        print(f"Ітерація {iteration_count}: Показник якості = {mse:.5f}")
+
         if np.abs(deltaB).max() < eps:
             print(f"Convergence reached at iteration {iteration_count}")
             break
@@ -114,28 +123,56 @@ def Parameters(b, t0, T, deltaT, eps, max_iter=1000):
 
         prev_b = b.copy()
 
-    # Побудова графіка зміни параметрів
+    # Побудова графіка зміни жорсткостей
     plt.figure(figsize=(10, 6))
 
-    plt.plot(range(iteration_count), c2_history, label='c2', color='blue')
-    plt.plot(range(iteration_count), c4_history, label='c4', color='orange')
+    # Нормуємо жорсткості до 1
+    c2_normalized = np.array(c2_history) / max(c2_history)
+    c4_normalized = np.array(c4_history) / max(c4_history)
+
+    plt.plot(range(iteration_count), c2_normalized, label='c2 (normalized)', color='blue')
+    plt.plot(range(iteration_count), c4_normalized, label='c4 (normalized)', color='orange')
+
+    plt.xlabel('Ітерація')
+    plt.ylabel('Нормоване значення жорсткості')
+    plt.title('Зміна жорсткостей протягом ітерацій')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # Побудова графіка зміни мас
+    plt.figure(figsize=(10, 6))
+
     plt.plot(range(iteration_count), m1_history, label='m1', color='green')
 
     plt.xlabel('Ітерація')
-    plt.ylabel('Значення параметру')
-    plt.title('Зміна патаметрів протягом ітерацій')
+    plt.ylabel('Значення маси')
+    plt.title('Зміна мас протягом ітерацій')
     plt.legend()
     plt.grid(True)
+    plt.show()
+
+    # Побудова графіка зміни MSE для відстеження збіжності
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(range(iteration_count), mse_history, label='MSE', color='purple')
+
+    plt.xlabel('Ітерація')
+    plt.ylabel('Середньоквадратична помилка (MSE)')
+    plt.title('Збіжність: зміна Показнику якості протягом ітерацій')
+    plt.legend()
+    plt.grid(True)
+    plt.yscale('log')  # Використання логарифмічної шкали для кращої візуалізації збіжності
 
     plt.show()
 
-    np.savetxt("parameters_history.txt", np.column_stack((c2_history, c4_history, m1_history)))
+    np.savetxt("parameters_history.txt", np.column_stack((c2_history, c4_history, m1_history, mse_history)))
 
-    return b, iteration_count, history, diff_y_history
+    return b, iteration_count, history, mse_history
 
 if __name__ == "__main__":
     start_time = time.time()
-    solution, iteration_count, history, diff_y_history = Parameters(np.array([c2, c4, m1]), t0, T, deltaT, epsilon)
+    solution, iteration_count, history, mse_history = Parameters(np.array([c2, c4, m1]), t0, T, deltaT, epsilon)
     end_time = time.time()
     execution_time = end_time - start_time
 
@@ -143,5 +180,6 @@ if __name__ == "__main__":
 
     print(f"Результати: c2 = {solution[0]}, c4 = {solution[1]}, m1 = {solution[2]}")
     print("Кількість ітерацій:", iteration_count)
+    print("Час виконання: ", execution_time)
 
     np.savetxt("final_parameters.txt", [solution], delimiter=",", header="c2,c4,m1", comments="")
